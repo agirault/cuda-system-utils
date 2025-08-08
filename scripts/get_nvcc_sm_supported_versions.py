@@ -25,10 +25,14 @@ NVIDIA_CUDA_REPOS_URL = "https://developer.download.nvidia.com/compute/cuda/repo
 CUDA_ARCHIVE_URL = "https://developer.nvidia.com/cuda-toolkit-archive"
 
 
-def sm_sort_key(sm_ver_str: str) -> int:
-    """Helper function to extract the numeric part of an SM version string for sorting."""
-    match = re.search(r"sm_(\d+)", sm_ver_str)
-    return int(match.group(1)) if match else 0
+def sm_sort_key(sm_ver_str: str) -> tuple[int, str]:
+    """Helper function to extract the numeric and alphabetical parts of an SM version string for sorting."""
+    match = re.search(r"sm_(\d+)([af]?)", sm_ver_str)
+    if match:
+        numeric_part = int(match.group(1))
+        alpha_part = match.group(2) or ""
+        return (numeric_part, alpha_part)
+    return (0, "")
 
 
 class Version:
@@ -196,6 +200,14 @@ def parse_args() -> argparse.Namespace:
         help="Generate a compact table without extra spacing",
     )
 
+    # SM filtering options
+    parser.add_argument(
+        "-s",
+        "--list-specifics",
+        action="store_true",
+        help="List arch-specific or family-specific SM versions (e.g., sm_90a, sm_120f) in addition to base versions.",
+    )
+
     return parser.parse_args()
 
 
@@ -329,7 +341,7 @@ def filter_cuda_versions(
 
 
 def process_cuda_version(
-    cuda_version: Version, distros: list[str], temp_dir: Path
+    cuda_version: Version, distros: list[str], temp_dir: Path, list_specifics: bool
 ) -> tuple[bool, set[str]]:
     """
     Process a CUDA version to find supported SM architectures.
@@ -420,20 +432,26 @@ def process_cuda_version(
             # Try to get supported SM versions from nvcc
             sm_versions = set()
 
-            # First try --list-gpu-code
-            try:
-                result_list_gpu = subprocess.run(
-                    [str(nvcc_path), "--list-gpu-code"],
-                    capture_output=True,
-                    text=True,
-                )
-                if result_list_gpu.returncode == 0:
-                    for line in result_list_gpu.stdout.splitlines():
-                        sm_match = re.search(r"(sm_\d+[af]?)", line)
-                        if sm_match:
-                            sm_versions.add(sm_match.group(1))
-            except Exception:
-                pass
+            # Define the regex pattern based on whether to include specific versions
+            sm_pattern = r"(sm_\d+)"
+            if list_specifics:
+                sm_pattern = r"(sm_\d+[af]?)"
+
+            # TODO: We're ignoring this because it does not list arch and family specific versions
+            # # First try --list-gpu-code
+            # try:
+            #     result_list_gpu = subprocess.run(
+            #         [str(nvcc_path), "--list-gpu-code"],
+            #         capture_output=True,
+            #         text=True,
+            #     )
+            #     if result_list_gpu.returncode == 0:
+            #         for line in result_list_gpu.stdout.splitlines():
+            #             sm_match = re.search(sm_pattern, line)
+            #             if sm_match:
+            #                 sm_versions.add(sm_match.group(1))
+            # except Exception:
+            #     pass
 
             # If that didn't work, try to extract from help output
             if not sm_versions:
@@ -444,7 +462,7 @@ def process_cuda_version(
                         text=True,
                     )
                     for line in result_help.stdout.splitlines() + result_help.stderr.splitlines():
-                        for sm_match in re.finditer(r"(sm_\d+[af]?)", line):
+                        for sm_match in re.finditer(sm_pattern, line):
                             sm_versions.add(sm_match.group(1))
                 except Exception:
                     pass
@@ -466,7 +484,7 @@ def process_cuda_version(
 
 
 def get_sm_compatibility(
-    cuda_versions: list[Version], ubuntu_distros: list[str], temp_dir: Path
+    cuda_versions: list[Version], ubuntu_distros: list[str], temp_dir: Path, list_specifics: bool
 ) -> dict[str, list[Version]]:
     """
     Process CUDA versions to find SM compatibility.
@@ -482,7 +500,7 @@ def get_sm_compatibility(
     sm_version_map = {}
 
     for cuda_version in cuda_versions:
-        success, found_sm_set = process_cuda_version(cuda_version, ubuntu_distros, temp_dir)
+        success, found_sm_set = process_cuda_version(cuda_version, ubuntu_distros, temp_dir, list_specifics)
 
         if success:
             for sm_arch_str in found_sm_set:
@@ -620,7 +638,7 @@ def main():
         print(f"Processing CUDA versions: {' '.join(str(v) for v in cuda_versions)}")
 
         # Process CUDA versions to find SM compatibility
-        sm_version_map = get_sm_compatibility(cuda_versions, ubuntu_distros, temp_dir)
+        sm_version_map = get_sm_compatibility(cuda_versions, ubuntu_distros, temp_dir, args.list_specifics)
 
         # Generate and print Markdown table
         table = generate_markdown_table(sm_version_map, args.compact)

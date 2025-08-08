@@ -103,15 +103,15 @@ scripts/get_cmake_cuda_archs.py all-major --min-arch 70
 
 #### Overview
 
-This Python script identifies which CUDA Toolkit versions support specific SM (Streaming Multiprocessor) architectures. It fetches data by downloading `cuda-nvcc` Debian packages from NVIDIA's official repositories for various Ubuntu distributions and CUDA toolkit versions. It then extracts the `nvcc` binary from these packages and runs it with `--list-gpu-code` (or similar commands) to determine the supported SM architectures for that particular CUDA version.
+This Python script identifies which CUDA Toolkit versions support specific SM (Streaming Multiprocessor) architectures. It fetches data by downloading `cuda-nvcc` Debian packages from NVIDIA's official repositories for various Ubuntu distributions and CUDA toolkit versions. It then extracts the `nvcc` binary from these packages and runs it with `--help` to determine the supported SM architectures for that particular CUDA version.
 
-The script aggregates this information and outputs a Markdown table mapping each SM architecture (e.g., `sm_35`, `sm_75`, `sm_90a`) to the CUDA Toolkit versions that support it.
+The script aggregates this information and outputs a Markdown table mapping each SM architecture to the CUDA Toolkit versions that support it. By default, it lists base architectures (e.g., `sm_75`, `sm_80`), but can be configured to show arch-specific or family-specific versions as well (e.g. `sm_90a`, `sm_120f`).
 
 #### Prerequisites
 
 *   Python 3
 *   `requests` Python package: Install via `pip install requests`.
-*   `dpkg-deb` command-line utility: Typically available on Debian-based systems (like Ubuntu). This is required to extract `.deb` packages.
+*   `dpkg` command-line utility: Typically available on Debian-based systems (like Ubuntu). This is required to extract `.deb` packages.
 *   Internet access: To download CUDA packages from NVIDIA and fetch lists of available versions.
 
 #### Usage
@@ -129,6 +129,7 @@ scripts/get_nvcc_sm_supported_versions.py [cuda_versions...] [options]
 *   `--min <version>`: Specify the minimum CUDA version to check (e.g., `11.0`). This is ignored if `cuda_versions` are explicitly provided.
 *   `--max <version>`: Specify the maximum CUDA version to check (e.g., `12.2`). This is ignored if `cuda_versions` are explicitly provided.
 *   `--compact`: Generate a more compact Markdown table without extra spacing between columns.
+*   `-s`, `--list-specifics`: List arch-specific or family-specific SM versions (e.g., `sm_90a`) in addition to base versions. By default, only base versions are shown.
 
 #### Example
 
@@ -148,4 +149,10 @@ To check all available CUDA versions and output a compact summary Markdown table
 
 ```bash
 scripts/get_nvcc_sm_supported_versions.py --compact
+```
+
+To include arch-specific or family-specific SMs like `sm_90a` in the output:
+
+```bash
+scripts/get_nvcc_sm_supported_versions.py --list-specifics
 ```
