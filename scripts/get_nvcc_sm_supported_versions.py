@@ -456,10 +456,16 @@ def process_cuda_version(
             # If that didn't work, try to extract from help output
             if not sm_versions:
                 try:
+                    # Make sure to not consider values that were dropped but listed in --help by
+                    # filtering that out with sed
+                    help_cmd = (
+                        str(nvcc_path) + " --help | sed -n '/Allowed values/,/^$/p'"
+                    )
                     result_help = subprocess.run(
-                        [str(nvcc_path), "--help"],
+                        help_cmd,
                         capture_output=True,
                         text=True,
+                        shell=True,
                     )
                     for line in result_help.stdout.splitlines() + result_help.stderr.splitlines():
                         for sm_match in re.finditer(sm_pattern, line):
